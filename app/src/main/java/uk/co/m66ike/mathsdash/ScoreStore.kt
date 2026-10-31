@@ -112,6 +112,11 @@ class ScoreStore(context: Context) {
         }
     }
 
+    // Reset only scores; leave the remembered name, colours and menu settings untouched.
+    fun clearScores() {
+        prefs.edit().remove("scores").apply()
+    }
+
     fun add(entry: ScoreEntry): List<ScoreEntry> {
         val updated = load() + entry
         val json = JSONArray()

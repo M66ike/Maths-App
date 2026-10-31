@@ -240,6 +240,10 @@ private fun MathsDashApp() {
                 matchingSettings = leaderboardSettings,
                 onlyMatching = onlyMatching,
                 onToggleMatching = { onlyMatching = it },
+                onResetAll = {
+                    store.clearScores()
+                    scores = emptyList()
+                },
                 onBack = { screen = Screen.HOME }
             )
         }
@@ -764,8 +768,10 @@ private fun LeaderboardScreen(
     matchingSettings: GameSettings,
     onlyMatching: Boolean,
     onToggleMatching: (Boolean) -> Unit,
+    onResetAll: () -> Unit,
     onBack: () -> Unit
 ) {
+    var showResetConfirmation by remember { mutableStateOf(false) }
     val colours = LocalMathPalette.current
     val muted = colours.muted
     val positive = colours.positive
@@ -791,6 +797,17 @@ private fun LeaderboardScreen(
             Text(matchingSettings.summary(), color = muted, fontSize = 13.sp)
         } else {
             Text("All players and game types — highest scores first.", color = muted, fontSize = 13.sp)
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            OutlinedButton(
+                onClick = { showResetConfirmation = true },
+                enabled = entries.isNotEmpty(),
+                border = BorderStroke(1.dp, colours.negative),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colours.negative)
+            ) {
+                Text("Reset all scores")
+            }
         }
 
         if (displayed.isEmpty()) {
@@ -819,5 +836,30 @@ private fun LeaderboardScreen(
                 }
             }
         }
+    }
+    if (showResetConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmation = false },
+            title = { Text("Reset all scores?") },
+            text = {
+                Text(
+                    "This permanently deletes all ${entries.size} saved results for every player " +
+                    "and game setting on this device. This cannot be undone. " +
+                    "Your name, theme and menu settings will be kept."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onResetAll()
+                        showResetConfirmation = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = colours.negative)
+                ) { Text("Delete all scores") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmation = false }) { Text("Cancel") }
+            }
+        )
     }
 }

@@ -37,3 +37,5 @@ The APK will be at `app/build/outputs/apk/debug/app-debug.apk`. The GitHub workf
 No account, analytics, network permission or backend. Names, settings and scores are kept in on-device preferences. Removing app data or uninstalling the app can remove the leaderboard.
 
 **Updating an existing debug install:** The first update from v1.0 may require uninstalling the old APK because GitHub's temporary debug signing key has changed. Uninstalling erases locally stored scores. The workflow now caches its debug key for more consistent future updates. For a permanent release, use a privately stored release signing key.
+
+- **Reset leaderboard**: The Scores screen includes a Reset all scores button. A confirmation is required; only saved score entries are erased, not the remembered player name or preferences.
