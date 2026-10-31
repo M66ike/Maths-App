@@ -7,7 +7,7 @@ A simple, offline Android maths challenge built for children and families. One p
 - **Addition**: Find the only number that is the sum of two others in the grid.
 - **Multiplication**: Find the only number that is the product of two others in the grid.
 - **Subtraction / Division**: Read the equation and tap its answer. These modes use an equation because a grid of three related numbers can otherwise have more than one valid answer.
-- **Times tables**: Select one or more of the 2×–12× tables and a maximum multiplier 1–12. Facts involving a multiplier of ×1 show an equation so the answer is never ambiguous.
+- **Times tables**: Select one or more of the 2×–12× tables and a maximum multiplier 2–12. ×1 facts are excluded entirely. Multiplication always uses a tile grid, including square facts such as 2 × 2 (which legitimately use two identical source tiles).
 - **Practice**: No timer, no leaderboard entry.
 - **Timed**: 30/60/90/120 seconds or custom (10–600 seconds). +1 per correct answer. A wrong answer pauses the timer and highlights the correct tile and calculation for about two seconds, then the next question starts automatically. Correct answers advance automatically.
 - **Leaderboard**: All players appear together, with an optional filter for identical settings. Results are saved locally; the app remembers the previous name.

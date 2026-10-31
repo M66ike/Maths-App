@@ -30,8 +30,10 @@ class GameEngineTest {
             val p = engine.next(settings)
             assertEquals(p.operandA * p.operandB, p.numbers[p.correctIndex])
             assertTrue(p.operandA in settings.selectedTables)
-            assertTrue(p.operandB in 1..6)
-            if (!p.usesEquation) assertEquals(listOf(p.correctIndex), answers(p.numbers, true))
+            assertTrue(p.operandB in 2..6)
+            assertFalse(p.usesEquation)
+            assertFalse(p.numbers.contains(1))
+            assertEquals(listOf(p.correctIndex), answers(p.numbers, true))
         }
     }
 
@@ -60,14 +62,29 @@ class GameEngineTest {
         }
     }
 
-    @Test fun multiplicationByOneWorksAsAnEquation() {
-        val p = engine.next(GameSettings(
+    @Test fun multiplicationAtSmallestRangeStaysTileBased() {
+        for (tiles in listOf(4, 6, 9, 12)) {
+            val settings = GameSettings(
+                operation = Operation.MULTIPLY,
+                tileCount = tiles,
+                selectedTables = setOf(2),
+                multiplierLimit = 2
+            )
+            repeat(100) {
+                val p = engine.next(settings)
+                assertFalse(p.usesEquation)
+                assertEquals(tiles, p.numbers.size)
+                assertEquals(4, p.numbers[p.correctIndex])
+                assertEquals(2, p.operandA)
+                assertEquals(2, p.operandB)
+                assertFalse(p.numbers.contains(1))
+                assertEquals(listOf(p.correctIndex), answers(p.numbers, true))
+            }
+        }
+        assertFalse(GameSettings(
             operation = Operation.MULTIPLY,
-            selectedTables = setOf(3),
             multiplierLimit = 1
-        ))
-        assertTrue(p.usesEquation)
-        assertEquals(p.operandA * p.operandB, p.numbers[p.correctIndex])
+        ).isValid())
     }
 
     @Test fun leaderboardKeysIncludeRelevantSettings() {

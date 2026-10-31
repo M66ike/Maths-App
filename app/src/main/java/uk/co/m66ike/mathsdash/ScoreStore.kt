@@ -37,7 +37,7 @@ class ScoreStore(context: Context) {
                 tileCount = json.optInt("tileCount", 6),
                 maxNumber = json.optInt("maxNumber", 30),
                 selectedTables = tables,
-                multiplierLimit = json.optInt("multiplierLimit", 12),
+                multiplierLimit = json.optInt("multiplierLimit", 12).coerceIn(2, 12),
                 timeSeconds = json.optInt("timeSeconds", 60)
             )
             if (loaded.isValid()) loaded else GameSettings()

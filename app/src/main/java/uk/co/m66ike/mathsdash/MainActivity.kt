@@ -475,9 +475,10 @@ private fun HomeScreen(
                 Slider(
                     value = settings.multiplierLimit.toFloat(),
                     onValueChange = { onSettingsChange(settings.copy(multiplierLimit = it.roundToInt())) },
-                    valueRange = 1f..12f,
-                    steps = 10
+                    valueRange = 2f..12f,
+                    steps = 9
                 )
+                Text("Multiplication starts at ×2 — no ×1 questions.", color = muted, fontSize = 12.sp)
                 if (settings.selectedTables.isEmpty()) {
                     Text("Select at least one times table.", color = negative, fontSize = 13.sp)
                 } else {

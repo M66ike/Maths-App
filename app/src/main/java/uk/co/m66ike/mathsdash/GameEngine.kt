@@ -22,7 +22,7 @@ data class GameSettings(
     fun isValid(): Boolean = tileCount in 4..12 &&
         (timeSeconds == 0 || timeSeconds in 10..600) &&
         (if (isTablesMode) {
-            selectedTables.isNotEmpty() && selectedTables.all { it in 2..12 } && multiplierLimit in 1..12
+            selectedTables.isNotEmpty() && selectedTables.all { it in 2..12 } && multiplierLimit in 2..12
         } else {
             maxNumber in (tileCount * 2)..999
         })
@@ -58,16 +58,7 @@ class GameEngine(private val random: Random = Random.Default) {
         require(settings.isValid()) { "Invalid game settings" }
         return when (settings.operation) {
             Operation.ADD -> classic(settings, isProduct = false)
-            Operation.MULTIPLY -> {
-                if (settings.multiplierLimit == 1) {
-                    multiplicationEquation(settings)
-                } else if (random.nextInt(settings.multiplierLimit) == 0) {
-                    // The x1 fact needs a shown equation: the product equals an operand.
-                    multiplicationEquation(settings, forcedMultiplier = 1)
-                } else {
-                    classic(settings, isProduct = true)
-                }
-            }
+            Operation.MULTIPLY -> multiplicationTiles(settings)
             Operation.SUBTRACT -> subtraction(settings)
             Operation.DIVIDE -> division(settings)
         }
@@ -84,7 +75,7 @@ class GameEngine(private val random: Random = Random.Default) {
             val a: Int
             val b: Int
             if (isProduct) {
-                if (eligibleTables.isEmpty()) return multiplicationEquation(settings)
+                if (eligibleTables.isEmpty()) return multiplicationTiles(settings)
                 a = eligibleTables.random(random)
                 b = random.nextInt(2, settings.multiplierLimit + 1)
             } else {
@@ -116,7 +107,55 @@ class GameEngine(private val random: Random = Random.Default) {
         }
         // Some dense combinations cannot form a unique Kakooma puzzle.
         // Preserve the exact arithmetic facts with an unambiguous equation instead.
-        return if (isProduct) multiplicationEquation(settings) else additionEquation(settings)
+        return if (isProduct) multiplicationTiles(settings) else additionEquation(settings)
+    }
+
+    private fun multiplicationTiles(settings: GameSettings): Puzzle {
+        val a = settings.selectedTables.random(random)
+        val b = random.nextInt(2, settings.multiplierLimit + 1)
+        val result = a * b
+        // Two equal operands are allowed for square facts such as 2 × 2.
+        // There are still exactly two source tiles and one result tile.
+        val seed = listOf(a, b, result)
+        val maximum = maxOf(36, settings.selectedTables.max() * settings.multiplierLimit, settings.tileCount * 4)
+        val extras = mutableListOf<Int>()
+
+        fun tryAdd(candidate: Int) {
+            if (candidate in seed || candidate in extras || candidate == 1) return
+            val trial = seed + extras + candidate
+            if (validAnswerIndices(trial, product = true) == listOf(2)) {
+                extras += candidate
+            }
+        }
+
+        // Prefer distractors near the actual multiplication facts.
+        (2..maximum).shuffled(random).forEach { candidate ->
+            if (extras.size < settings.tileCount - 3) tryAdd(candidate)
+        }
+        // If a dense board needs more, larger primes are safe distractors.
+        if (extras.size < settings.tileCount - 3) {
+            (13..199).filter { n ->
+                (2..kotlin.math.sqrt(n.toDouble()).toInt()).none { n % it == 0 }
+            }.shuffled(random).forEach { candidate ->
+                if (extras.size < settings.tileCount - 3) tryAdd(candidate)
+            }
+        }
+        check(extras.size == settings.tileCount - 3) {
+            "Could not generate a unique multiplication board"
+        }
+        val shuffled = (seed + extras).shuffled(random)
+        val answerIndex = shuffled.indexOf(result)
+        check(validAnswerIndices(shuffled, product = true) == listOf(answerIndex))
+
+        return Puzzle(
+            numbers = shuffled,
+            correctIndex = answerIndex,
+            instruction = "Find the product of two numbers",
+            explanation = "$a × $b = $result",
+            operandA = a,
+            operandB = b,
+            usesEquation = false
+        )
     }
 
     private fun validAnswerIndices(numbers: List<Int>, product: Boolean): List<Int> =
@@ -163,16 +202,9 @@ class GameEngine(private val random: Random = Random.Default) {
         return equationPuzzle(settings, a, b, a - b, "−", settings.maxNumber)
     }
 
-    private fun multiplicationEquation(settings: GameSettings, forcedMultiplier: Int? = null): Puzzle {
-        val a = settings.selectedTables.random(random)
-        val b = forcedMultiplier ?: random.nextInt(1, settings.multiplierLimit + 1)
-        val maximum = maxOf(24, (settings.selectedTables.maxOrNull() ?: 1) * settings.multiplierLimit, settings.tileCount + 5)
-        return equationPuzzle(settings, a, b, a * b, "×", maximum)
-    }
-
     private fun division(settings: GameSettings): Puzzle {
         val table = settings.selectedTables.random(random)
-        val multiplier = random.nextInt(1, settings.multiplierLimit + 1)
+        val multiplier = random.nextInt(2, settings.multiplierLimit + 1)
         val dividend = table * multiplier
         val divisor = if (random.nextBoolean()) table else multiplier
         val answer = dividend / divisor
