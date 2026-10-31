@@ -37,6 +37,54 @@ class GameEngineTest {
         }
     }
 
+    @Test fun multiplicationDistractorsPreferOnlySelectedTableAnswers() {
+        val cases = listOf(
+            GameSettings(
+                operation = Operation.MULTIPLY,
+                selectedTables = setOf(5),
+                multiplierLimit = 6,
+                tileCount = 6
+            ),
+            GameSettings(
+                operation = Operation.MULTIPLY,
+                selectedTables = setOf(3, 5),
+                multiplierLimit = 8,
+                tileCount = 6
+            )
+        )
+        for (settings in cases) {
+            val selectedAnswers = settings.selectedTables.flatMap { table ->
+                (2..settings.multiplierLimit).map { table * it }
+            }.toSet()
+            repeat(80) {
+                val p = engine.next(settings)
+                val remaining = p.numbers.toMutableList()
+                assertTrue(remaining.remove(p.operandA))
+                assertTrue(remaining.remove(p.operandB))
+                assertTrue(remaining.remove(p.numbers[p.correctIndex]))
+                assertEquals(settings.tileCount - 3, remaining.size)
+                assertTrue("Non-table distractors were used despite enough choices",
+                    remaining.all { it in selectedAnswers })
+                assertEquals(listOf(p.correctIndex), answers(p.numbers, true))
+            }
+        }
+    }
+
+    @Test fun shortTablesCanFillTheRemainingTilesWithOtherNumbers() {
+        val settings = GameSettings(
+            operation = Operation.MULTIPLY,
+            selectedTables = setOf(2),
+            multiplierLimit = 2,
+            tileCount = 12
+        )
+        repeat(60) {
+            val p = engine.next(settings)
+            assertEquals(12, p.numbers.size)
+            assertFalse(p.usesEquation)
+            assertEquals(listOf(p.correctIndex), answers(p.numbers, true))
+        }
+    }
+
     @Test fun subtractionAlwaysPositiveAndCorrect() {
         val settings = GameSettings(operation = Operation.SUBTRACT, maxNumber = 20)
         repeat(250) {
@@ -57,6 +105,7 @@ class GameEngineTest {
             val p = engine.next(settings)
             assertEquals(0, p.operandA % p.operandB)
             assertEquals(p.operandA / p.operandB, p.numbers[p.correctIndex])
+            assertTrue(p.numbers.all { it in 1..12 })
             assertTrue((p.operandA / 3 in 1..12 && p.operandA % 3 == 0) ||
                 (p.operandA / 6 in 1..12 && p.operandA % 6 == 0))
         }

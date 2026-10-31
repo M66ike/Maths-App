@@ -111,51 +111,73 @@ class GameEngine(private val random: Random = Random.Default) {
     }
 
     private fun multiplicationTiles(settings: GameSettings): Puzzle {
-        val a = settings.selectedTables.random(random)
-        val b = random.nextInt(2, settings.multiplierLimit + 1)
-        val result = a * b
-        // Two equal operands are allowed for square facts such as 2 × 2.
-        // There are still exactly two source tiles and one result tile.
-        val seed = listOf(a, b, result)
-        val maximum = maxOf(36, settings.selectedTables.max() * settings.multiplierLimit, settings.tileCount * 4)
-        val extras = mutableListOf<Int>()
+        val selectedProducts = settings.selectedTables
+            .flatMap { table -> (2..settings.multiplierLimit).map { multiplier -> table * multiplier } }
+            .distinct()
+        val pairs = settings.selectedTables
+            .flatMap { table -> (2..settings.multiplierLimit).map { table to it } }
+            .shuffled(random)
+        val requiredExtras = settings.tileCount - 3
 
-        fun tryAdd(candidate: Int) {
-            if (candidate in seed || candidate in extras || candidate == 1) return
-            val trial = seed + extras + candidate
-            if (validAnswerIndices(trial, product = true) == listOf(2)) {
-                extras += candidate
+        fun canAdd(seed: List<Int>, extras: List<Int>, number: Int): Boolean {
+            if (number == 1 || number in seed || number in extras) return false
+            return validAnswerIndices(seed + extras + number, product = true) == listOf(2)
+        }
+
+        fun puzzleFrom(seed: List<Int>, extras: List<Int>): Puzzle {
+            val shuffled = (seed + extras).shuffled(random)
+            val correctIndex = shuffled.indexOf(seed[2])
+            check(validAnswerIndices(shuffled, product = true) == listOf(correctIndex))
+            return Puzzle(
+                numbers = shuffled,
+                correctIndex = correctIndex,
+                instruction = "Find the product of two numbers",
+                explanation = "${seed[0]} × ${seed[1]} = ${seed[2]}",
+                operandA = seed[0],
+                operandB = seed[1],
+                usesEquation = false
+            )
+        }
+
+        // First try to fill every other tile with an actual answer from
+        // the chosen tables and chosen multiplier limit.
+        var bestSeed: List<Int>? = null
+        var bestExtras: List<Int> = emptyList()
+        for ((a, b) in pairs) {
+            val seed = listOf(a, b, a * b)
+            repeat(4) {
+                val extras = mutableListOf<Int>()
+                for (number in selectedProducts.shuffled(random)) {
+                    if (extras.size == requiredExtras) break
+                    if (canAdd(seed, extras, number)) extras += number
+                }
+                if (extras.size == requiredExtras) return puzzleFrom(seed, extras)
+                if (bestSeed == null || extras.size > bestExtras.size) {
+                    bestSeed = seed
+                    bestExtras = extras.toList()
+                }
             }
         }
 
-        // Prefer distractors near the actual multiplication facts.
-        (2..maximum).shuffled(random).forEach { candidate ->
-            if (extras.size < settings.tileCount - 3) tryAdd(candidate)
+        // Very short table selections may not have enough distinct valid
+        // answers to fill a larger board. Use other numbers only then.
+        val seed = checkNotNull(bestSeed)
+        val extras = bestExtras.toMutableList()
+        val maximum = maxOf(36, selectedProducts.maxOrNull() ?: 36, settings.tileCount * 4)
+        for (number in (2..maximum).shuffled(random)) {
+            if (extras.size == requiredExtras) break
+            if (canAdd(seed, extras, number)) extras += number
         }
-        // If a dense board needs more, larger primes are safe distractors.
-        if (extras.size < settings.tileCount - 3) {
-            (13..199).filter { n ->
-                (2..kotlin.math.sqrt(n.toDouble()).toInt()).none { n % it == 0 }
-            }.shuffled(random).forEach { candidate ->
-                if (extras.size < settings.tileCount - 3) tryAdd(candidate)
+        if (extras.size < requiredExtras) {
+            for (number in (13..199).shuffled(random)) {
+                if (extras.size == requiredExtras) break
+                if (canAdd(seed, extras, number)) extras += number
             }
         }
-        check(extras.size == settings.tileCount - 3) {
+        check(extras.size == requiredExtras) {
             "Could not generate a unique multiplication board"
         }
-        val shuffled = (seed + extras).shuffled(random)
-        val answerIndex = shuffled.indexOf(result)
-        check(validAnswerIndices(shuffled, product = true) == listOf(answerIndex))
-
-        return Puzzle(
-            numbers = shuffled,
-            correctIndex = answerIndex,
-            instruction = "Find the product of two numbers",
-            explanation = "$a × $b = $result",
-            operandA = a,
-            operandB = b,
-            usesEquation = false
-        )
+        return puzzleFrom(seed, extras)
     }
 
     private fun validAnswerIndices(numbers: List<Int>, product: Boolean): List<Int> =
@@ -208,7 +230,7 @@ class GameEngine(private val random: Random = Random.Default) {
         val dividend = table * multiplier
         val divisor = if (random.nextBoolean()) table else multiplier
         val answer = dividend / divisor
-        val maximum = maxOf(24, (settings.selectedTables.maxOrNull() ?: 1) * settings.multiplierLimit, settings.tileCount + 5)
-        return equationPuzzle(settings, dividend, divisor, answer, "÷", maximum)
+        // Quotients are always 1..12, unlike the larger dividend.
+        return equationPuzzle(settings, dividend, divisor, answer, "÷", 12)
     }
 }
