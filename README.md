@@ -9,10 +9,12 @@ A simple, offline Android maths challenge built for children and families. One p
 - **Subtraction / Division**: Read the equation and tap its answer. These modes use an equation because a grid of three related numbers can otherwise have more than one valid answer.
 - **Times tables**: Select one or more of the 2×–12× tables and a maximum multiplier 1–12. Facts involving a multiplier of ×1 show an equation so the answer is never ambiguous.
 - **Practice**: No timer, no leaderboard entry.
-- **Timed**: 30/60/90/120 seconds or custom (10–600 seconds). +1 per correct answer. A wrong answer pauses the timer and highlights the correct tile and calculation; tap anywhere (or NEXT QUESTION) to resume. Correct answers advance automatically.
+- **Timed**: 30/60/90/120 seconds or custom (10–600 seconds). +1 per correct answer. A wrong answer pauses the timer and highlights the correct tile and calculation for about two seconds, then the next question starts automatically. Correct answers advance automatically.
 - **Leaderboard**: All players appear together, with an optional filter for identical settings. Results are saved locally; the app remembers the previous name.
-- **Themes**: Tap Theme next to Scores to choose separate background and button colours; readable text switches automatically between white and black. Your selection is saved on the phone.
-- **End button**: A large, visible button ends the round or finishes practice.
+- **Themes**: Tap Theme next to Scores to choose separate background and button colours from 28 preset colours each, or use the HSV colour wheel and brightness slider for a custom shade. Readable text switches automatically between white and black. Your selection is saved on the phone.
+- **End button**: A smaller visible button asks for confirmation before ending or finishing a round. The Android Back action also confirms during a game.
+- **Menu**: The home menu includes an exit button with confirmation. Theme and Scores are spaced evenly beneath the title.
+- **App icon**: Four outlined black-and-white tiles showing +, −, ÷ and ×.
 
 ## Install the APK
 

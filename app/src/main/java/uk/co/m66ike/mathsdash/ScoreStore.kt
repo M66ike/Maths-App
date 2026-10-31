@@ -6,7 +6,9 @@ import org.json.JSONObject
 
 data class Appearance(
     val backgroundIndex: Int = 0,
-    val buttonIndex: Int = 0
+    val buttonIndex: Int = 0,
+    val customBackgroundArgb: Long? = null,
+    val customButtonArgb: Long? = null
 )
 
 data class ScoreEntry(
@@ -57,15 +59,31 @@ class ScoreStore(context: Context) {
     }
 
     fun loadAppearance(): Appearance = Appearance(
-        backgroundIndex = prefs.getInt("theme_background", 0).coerceIn(0, 7),
-        buttonIndex = prefs.getInt("theme_button", 0).coerceIn(0, 7)
+        backgroundIndex = prefs.getInt("theme_background", 0).coerceIn(0, 40),
+        buttonIndex = prefs.getInt("theme_button", 0).coerceIn(0, 40),
+        customBackgroundArgb = if (prefs.contains("theme_custom_background")) {
+            prefs.getLong("theme_custom_background", 0L)
+        } else null,
+        customButtonArgb = if (prefs.contains("theme_custom_button")) {
+            prefs.getLong("theme_custom_button", 0L)
+        } else null
     )
 
     fun saveAppearance(appearance: Appearance) {
-        prefs.edit()
+        val editor = prefs.edit()
             .putInt("theme_background", appearance.backgroundIndex)
             .putInt("theme_button", appearance.buttonIndex)
-            .apply()
+        if (appearance.customBackgroundArgb == null) {
+            editor.remove("theme_custom_background")
+        } else {
+            editor.putLong("theme_custom_background", appearance.customBackgroundArgb)
+        }
+        if (appearance.customButtonArgb == null) {
+            editor.remove("theme_custom_button")
+        } else {
+            editor.putLong("theme_custom_button", appearance.customButtonArgb)
+        }
+        editor.apply()
     }
 
     fun lastName(): String = prefs.getString("last_name", "") ?: ""

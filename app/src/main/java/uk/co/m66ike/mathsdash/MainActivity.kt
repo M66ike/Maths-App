@@ -46,6 +46,8 @@ private fun MathsDashApp() {
     var appearance by remember { mutableStateOf(store.loadAppearance()) }
     val palette = remember(appearance) { paletteFor(appearance) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showEndConfirm by remember { mutableStateOf(false) }
+    var showExitConfirm by remember { mutableStateOf(false) }
     var timerPaused by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var settings by remember { mutableStateOf(store.loadSettings()) }
@@ -75,12 +77,29 @@ private fun MathsDashApp() {
         remainingMillis = config.timeSeconds.toLong() * 1000
         timerPaused = false
         endTime = SystemClock.elapsedRealtime() + remainingMillis
+        showEndConfirm = false
         screen = Screen.GAME
     }
 
-    LaunchedEffect(screen, endTime, timerPaused) {
-        if (screen == Screen.GAME && runSettings.timeSeconds > 0 && !timerPaused) {
-            while (screen == Screen.GAME && !timerPaused) {
+    fun requestEndConfirmation() {
+        if (screen == Screen.GAME) {
+            if (runSettings.timeSeconds > 0 && !timerPaused) {
+                remainingMillis = (endTime - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+            }
+            showEndConfirm = true
+        }
+    }
+
+    fun cancelEndConfirmation() {
+        if (runSettings.timeSeconds > 0 && !timerPaused) {
+            endTime = SystemClock.elapsedRealtime() + remainingMillis
+        }
+        showEndConfirm = false
+    }
+
+    LaunchedEffect(screen, endTime, timerPaused, showEndConfirm) {
+        if (screen == Screen.GAME && runSettings.timeSeconds > 0 && !timerPaused && !showEndConfirm) {
+            while (screen == Screen.GAME && !timerPaused && !showEndConfirm) {
                 remainingMillis = (endTime - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
                 if (remainingMillis == 0L) {
                     screen = Screen.RESULT
@@ -92,23 +111,29 @@ private fun MathsDashApp() {
     }
 
     LaunchedEffect(screen, revealedIndex) {
-        if (screen == Screen.GAME && revealedIndex >= 0 &&
-            revealedIndex == puzzle?.correctIndex) {
-            delay(850)
-            if (screen == Screen.GAME &&
-                (runSettings.timeSeconds == 0 || SystemClock.elapsedRealtime() < endTime)
-            ) {
-                puzzle = engine.next(runSettings)
-                revealedIndex = -1
+        if (screen == Screen.GAME && revealedIndex >= 0) {
+            val wrongAnswer = revealedIndex != puzzle?.correctIndex
+            // Keep an incorrect result visible to read, with the countdown paused.
+            delay(if (wrongAnswer) 1900 else 850)
+            if (screen == Screen.GAME) {
+                if (wrongAnswer && timerPaused) {
+                    endTime = SystemClock.elapsedRealtime() + remainingMillis
+                    timerPaused = false
+                }
+                if (runSettings.timeSeconds == 0 ||
+                    SystemClock.elapsedRealtime() < endTime) {
+                    puzzle = engine.next(runSettings)
+                    revealedIndex = -1
+                }
             }
         }
     }
 
-    BackHandler(enabled = screen != Screen.HOME) {
-        screen = when (screen) {
-            Screen.GAME -> Screen.RESULT
-            Screen.RESULT, Screen.LEADERBOARD -> Screen.HOME
-            Screen.HOME -> Screen.HOME
+    BackHandler(enabled = true) {
+        when (screen) {
+            Screen.GAME -> requestEndConfirmation()
+            Screen.RESULT, Screen.LEADERBOARD -> screen = Screen.HOME
+            Screen.HOME -> showExitConfirm = true
         }
     }
 
@@ -145,6 +170,7 @@ private fun MathsDashApp() {
                 onSettingsChange = { settings = it },
                 onStart = { startGame() },
                 onTheme = { showThemeDialog = true },
+                onClose = { showExitConfirm = true },
                 onLeaderboard = {
                     leaderboardSettings = settings
                     onlyMatching = false
@@ -161,16 +187,6 @@ private fun MathsDashApp() {
                     remainingMillis = remainingMillis,
                     revealedIndex = revealedIndex,
                     timerPaused = timerPaused,
-                    onContinue = {
-                        if (revealedIndex >= 0 && revealedIndex != activePuzzle.correctIndex) {
-                            puzzle = engine.next(runSettings)
-                            revealedIndex = -1
-                            if (timerPaused) {
-                                endTime = SystemClock.elapsedRealtime() + remainingMillis
-                                timerPaused = false
-                            }
-                        }
-                    },
                     onNumberTap = { index ->
                         if (revealedIndex == -1) {
                             revealedIndex = index
@@ -183,7 +199,7 @@ private fun MathsDashApp() {
                             }
                         }
                     },
-                    onEnd = { screen = Screen.RESULT }
+                    onEnd = { requestEndConfirmation() }
                 )
             }
             Screen.RESULT -> ResultScreen(
@@ -228,6 +244,38 @@ private fun MathsDashApp() {
             )
         }
     }
+            if (showEndConfirm && screen == Screen.GAME) {
+                AlertDialog(
+                    onDismissRequest = { cancelEndConfirmation() },
+                    title = { Text(if (runSettings.timeSeconds == 0) "Finish practice?" else "End this game?") },
+                    text = { Text("Are you sure you want to finish this round?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showEndConfirm = false
+                            screen = Screen.RESULT
+                        }) { Text("Yes, finish") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { cancelEndConfirmation() }) { Text("Keep playing") }
+                    }
+                )
+            }
+            if (showExitConfirm && screen == Screen.HOME) {
+                AlertDialog(
+                    onDismissRequest = { showExitConfirm = false },
+                    title = { Text("Close Maths Dash?") },
+                    text = { Text("Are you sure you want to exit the app?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showExitConfirm = false
+                            (context as? ComponentActivity)?.finish()
+                        }) { Text("Close app") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showExitConfirm = false }) { Text("Stay here") }
+                    }
+                )
+            }
             if (showThemeDialog) {
                 ThemePicker(
                     current = appearance,
@@ -249,6 +297,7 @@ private fun HomeScreen(
     onSettingsChange: (GameSettings) -> Unit,
     onStart: () -> Unit,
     onTheme: () -> Unit,
+    onClose: () -> Unit,
     onLeaderboard: () -> Unit
 ) {
     val colours = LocalMathPalette.current
@@ -270,14 +319,29 @@ private fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("MATHS DASH", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "MATHS DASH",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onClose) {
+                    Text("✕", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text("MENU", color = colours.textOnBackground, fontWeight = FontWeight.Bold)
             Text("Find it. Tap it. Beat your best!", color = muted)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                OutlinedButton(onClick = onTheme) { Text("🎨 Theme") }
-                OutlinedButton(onClick = onLeaderboard) { Text("🏆 Scores") }
+                OutlinedButton(onClick = onTheme, modifier = Modifier.weight(1f)) {
+                    Text("🎨 Theme")
+                }
+                OutlinedButton(onClick = onLeaderboard, modifier = Modifier.weight(1f)) {
+                    Text("🏆 Scores")
+                }
             }
         }
 
@@ -509,7 +573,6 @@ private fun GameScreen(
     remainingMillis: Long,
     revealedIndex: Int,
     timerPaused: Boolean,
-    onContinue: () -> Unit,
     onNumberTap: (Int) -> Unit,
     onEnd: () -> Unit
 ) {
@@ -524,8 +587,7 @@ private fun GameScreen(
     val reviewingWrongAnswer = reveal && !correct
 
     Column(
-        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp)
-            .clickable(enabled = reviewingWrongAnswer) { onContinue() },
+        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -614,23 +676,20 @@ private fun GameScreen(
             if (reviewingWrongAnswer) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Timer paused — tap anywhere when you're ready.",
+                    "Timer paused — moving to the next question…",
                     color = colours.textOnBackground,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(Modifier.height(8.dp))
-                FilledTonalButton(onClick = onContinue) {
-                    Text("NEXT QUESTION →")
-                }
             }
         } else {
             Text("$attempted questions answered", color = muted, fontSize = 13.sp)
         }
         Spacer(Modifier.weight(1f))
-        Button(
+        OutlinedButton(
             onClick = onEnd,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.width(184.dp).height(44.dp),
+            border = BorderStroke(1.dp, colours.border),
             shape = RoundedCornerShape(15.dp)
         ) {
             Text(if (settings.timeSeconds == 0) "FINISH PRACTICE" else "END GAME", fontWeight = FontWeight.Bold)
@@ -695,7 +754,7 @@ private fun ResultScreen(
         }
         Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("PLAY AGAIN") }
         OutlinedButton(onClick = onLeaderboard, modifier = Modifier.fillMaxWidth()) { Text("VIEW LEADERBOARD") }
-        TextButton(onClick = onHome) { Text("Back to settings") }
+        TextButton(onClick = onHome) { Text("Back to menu") }
     }
 }
 
