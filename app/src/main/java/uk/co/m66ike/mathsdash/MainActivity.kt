@@ -525,7 +525,7 @@ private fun GameScreen(
 
     Column(
         modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp)
-            .clickable(enabled = reviewingWrong) { onContinue() },
+            .clickable(enabled = reviewingWrongAnswer) { onContinue() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
