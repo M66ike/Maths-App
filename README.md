@@ -7,10 +7,12 @@ A simple, offline Android maths challenge built for children and families. One p
 - **Addition**: Find the only number that is the sum of two others in the grid.
 - **Multiplication**: Find the only number that is the product of two others in the grid.
 - **Subtraction / Division**: Read the equation and tap its answer. These modes use an equation because a grid of three related numbers can otherwise have more than one valid answer.
-- **Times tables**: Select one or more of the 1×–12× tables and a maximum multiplier 1–12. Multiplication facts involving ×1 show an equation so the answer is never ambiguous.
+- **Times tables**: Select one or more of the 2×–12× tables and a maximum multiplier 1–12. Facts involving a multiplier of ×1 show an equation so the answer is never ambiguous.
 - **Practice**: No timer, no leaderboard entry.
-- **Timed**: 30/60/90/120 seconds or custom (10–600 seconds). +1 per correct answer; a wrong answer highlights the correct one and moves on.
+- **Timed**: 30/60/90/120 seconds or custom (10–600 seconds). +1 per correct answer. A wrong answer pauses the timer and highlights the correct tile and calculation; tap anywhere (or NEXT QUESTION) to resume. Correct answers advance automatically.
 - **Leaderboard**: All players appear together, with an optional filter for identical settings. Results are saved locally; the app remembers the previous name.
+- **Themes**: Tap Theme next to Scores to choose separate background and button colours; readable text switches automatically between white and black. Your selection is saved on the phone.
+- **End button**: A large, visible button ends the round or finishes practice.
 
 ## Install the APK
 
@@ -31,3 +33,5 @@ The APK will be at `app/build/outputs/apk/debug/app-debug.apk`. The GitHub workf
 ## Privacy
 
 No account, analytics, network permission or backend. Names, settings and scores are kept in on-device preferences. Removing app data or uninstalling the app can remove the leaderboard.
+
+**Updating an existing debug install:** The first update from v1.0 may require uninstalling the old APK because GitHub's temporary debug signing key has changed. Uninstalling erases locally stored scores. The workflow now caches its debug key for more consistent future updates. For a permanent release, use a privately stored release signing key.

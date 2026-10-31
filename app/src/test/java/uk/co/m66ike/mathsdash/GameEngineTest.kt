@@ -63,8 +63,8 @@ class GameEngineTest {
     @Test fun multiplicationByOneWorksAsAnEquation() {
         val p = engine.next(GameSettings(
             operation = Operation.MULTIPLY,
-            selectedTables = setOf(1),
-            multiplierLimit = 12
+            selectedTables = setOf(3),
+            multiplierLimit = 1
         ))
         assertTrue(p.usesEquation)
         assertEquals(p.operandA * p.operandB, p.numbers[p.correctIndex])

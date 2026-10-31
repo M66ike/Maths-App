@@ -29,36 +29,12 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val background = Color(0xFF0B1220)
-private val panel = Color(0xFF17243B)
-private val tileColor = Color(0xFF23344F)
-private val accent = Color(0xFF65C7FF)
-private val positive = Color(0xFF92DF91)
-private val negative = Color(0xFFFF787F)
-private val muted = Color(0xFFAFC0D6)
-
 private enum class Screen { HOME, GAME, RESULT, LEADERBOARD }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = accent,
-                    onPrimary = background,
-                    background = background,
-                    onBackground = Color.White,
-                    surface = panel,
-                    onSurface = Color.White,
-                    surfaceVariant = tileColor,
-                    onSurfaceVariant = muted,
-                    error = negative
-                )
-            ) {
-                MathsDashApp()
-            }
-        }
+        setContent { MathsDashApp() }
     }
 }
 
@@ -67,6 +43,10 @@ private fun MathsDashApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val store = remember(context) { ScoreStore(context) }
     val engine = remember { GameEngine() }
+    var appearance by remember { mutableStateOf(store.loadAppearance()) }
+    val palette = remember(appearance) { paletteFor(appearance) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var timerPaused by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var settings by remember { mutableStateOf(store.loadSettings()) }
     var runSettings by remember { mutableStateOf(settings) }
@@ -93,13 +73,14 @@ private fun MathsDashApp() {
         saved = false
         puzzle = engine.next(config)
         remainingMillis = config.timeSeconds.toLong() * 1000
+        timerPaused = false
         endTime = SystemClock.elapsedRealtime() + remainingMillis
         screen = Screen.GAME
     }
 
-    LaunchedEffect(screen, endTime) {
-        if (screen == Screen.GAME && runSettings.timeSeconds > 0) {
-            while (screen == Screen.GAME) {
+    LaunchedEffect(screen, endTime, timerPaused) {
+        if (screen == Screen.GAME && runSettings.timeSeconds > 0 && !timerPaused) {
+            while (screen == Screen.GAME && !timerPaused) {
                 remainingMillis = (endTime - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
                 if (remainingMillis == 0L) {
                     screen = Screen.RESULT
@@ -111,7 +92,8 @@ private fun MathsDashApp() {
     }
 
     LaunchedEffect(screen, revealedIndex) {
-        if (screen == Screen.GAME && revealedIndex >= 0) {
+        if (screen == Screen.GAME && revealedIndex >= 0 &&
+            revealedIndex == puzzle?.correctIndex) {
             delay(850)
             if (screen == Screen.GAME &&
                 (runSettings.timeSeconds == 0 || SystemClock.elapsedRealtime() < endTime)
@@ -130,12 +112,39 @@ private fun MathsDashApp() {
         }
     }
 
-    Surface(color = background, modifier = Modifier.fillMaxSize()) {
+    val colourScheme = if (palette.light) lightColorScheme(
+        primary = palette.button,
+        onPrimary = palette.textOnButton,
+        background = palette.background,
+        onBackground = palette.textOnBackground,
+        surface = palette.panel,
+        onSurface = palette.textOnPanel,
+        surfaceVariant = palette.tile,
+        onSurfaceVariant = readableText(palette.tile),
+        outline = palette.border,
+        error = palette.negative
+    ) else darkColorScheme(
+        primary = palette.button,
+        onPrimary = palette.textOnButton,
+        background = palette.background,
+        onBackground = palette.textOnBackground,
+        surface = palette.panel,
+        onSurface = palette.textOnPanel,
+        surfaceVariant = palette.tile,
+        onSurfaceVariant = readableText(palette.tile),
+        outline = palette.border,
+        error = palette.negative
+    )
+
+    MaterialTheme(colorScheme = colourScheme) {
+        CompositionLocalProvider(LocalMathPalette provides palette) {
+    Surface(color = palette.background, modifier = Modifier.fillMaxSize()) {
         when (screen) {
             Screen.HOME -> HomeScreen(
                 settings = settings,
                 onSettingsChange = { settings = it },
                 onStart = { startGame() },
+                onTheme = { showThemeDialog = true },
                 onLeaderboard = {
                     leaderboardSettings = settings
                     onlyMatching = false
@@ -151,11 +160,27 @@ private fun MathsDashApp() {
                     attempted = attempted,
                     remainingMillis = remainingMillis,
                     revealedIndex = revealedIndex,
+                    timerPaused = timerPaused,
+                    onContinue = {
+                        if (revealedIndex >= 0 && revealedIndex != activePuzzle.correctIndex) {
+                            puzzle = engine.next(runSettings)
+                            revealedIndex = -1
+                            if (timerPaused) {
+                                endTime = SystemClock.elapsedRealtime() + remainingMillis
+                                timerPaused = false
+                            }
+                        }
+                    },
                     onNumberTap = { index ->
                         if (revealedIndex == -1) {
                             revealedIndex = index
                             attempted++
-                            if (index == activePuzzle.correctIndex) points++
+                            if (index == activePuzzle.correctIndex) {
+                                points++
+                            } else if (runSettings.timeSeconds > 0) {
+                                remainingMillis = (endTime - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                                timerPaused = true
+                            }
                         }
                     },
                     onEnd = { screen = Screen.RESULT }
@@ -203,6 +228,19 @@ private fun MathsDashApp() {
             )
         }
     }
+            if (showThemeDialog) {
+                ThemePicker(
+                    current = appearance,
+                    onDismiss = { showThemeDialog = false },
+                    onApply = { selected ->
+                        appearance = selected
+                        store.saveAppearance(selected)
+                        showThemeDialog = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -210,8 +248,15 @@ private fun HomeScreen(
     settings: GameSettings,
     onSettingsChange: (GameSettings) -> Unit,
     onStart: () -> Unit,
+    onTheme: () -> Unit,
     onLeaderboard: () -> Unit
 ) {
+    val colours = LocalMathPalette.current
+    val panel = colours.panel
+    val tileColor = colours.tile
+    val accent = colours.button
+    val muted = colours.muted
+    val negative = colours.negative
     var customMax by remember { mutableStateOf(false) }
     var customMaxText by remember { mutableStateOf(settings.maxNumber.toString()) }
     var customTime by remember { mutableStateOf(settings.timeSeconds !in setOf(0, 30, 60, 90, 120)) }
@@ -224,12 +269,16 @@ private fun HomeScreen(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("MATHS DASH", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
-                Text("Find it. Tap it. Beat your best!", color = muted)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("MATHS DASH", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+            Text("Find it. Tap it. Beat your best!", color = muted)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                OutlinedButton(onClick = onTheme) { Text("🎨 Theme") }
+                OutlinedButton(onClick = onLeaderboard) { Text("🏆 Scores") }
             }
-            OutlinedButton(onClick = onLeaderboard) { Text("🏆 Scores") }
         }
 
         SectionCard("1  Pick your maths") {
@@ -240,13 +289,13 @@ private fun HomeScreen(
                         Surface(
                             modifier = Modifier.weight(1f).height(90.dp)
                                 .clickable { onSettingsChange(settings.copy(operation = operation)) },
-                            color = if (selected) Color(0xFF174968) else tileColor,
+                            color = if (selected) colours.selected else tileColor,
                             shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) accent else Color(0xFF40516A))
+                            border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) accent else colours.border)
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text(operation.symbol, color = if (selected) accent else Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                                Text(operation.displayName, fontSize = 13.sp, color = Color.White)
+                                Text(operation.symbol, color = readableText(if (selected) colours.selected else tileColor), fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                                Text(operation.displayName, fontSize = 13.sp, color = readableText(if (selected) colours.selected else tileColor))
                             }
                         }
                     }
@@ -258,7 +307,7 @@ private fun HomeScreen(
         SectionCard("2  Numbers on screen") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Number tiles", modifier = Modifier.weight(1f), color = muted)
-                Text("${settings.tileCount}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text("${settings.tileCount}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colours.textOnPanel)
             }
             Slider(
                 value = settings.tileCount.toFloat(),
@@ -330,7 +379,7 @@ private fun HomeScreen(
         } else {
             SectionCard("3  Times tables") {
                 Text("Choose one or more tables to practise.", color = muted, fontSize = 13.sp)
-                (1..12).toList().chunked(4).forEach { tableRow ->
+                (2..12).toList().chunked(4).forEach { tableRow ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         tableRow.forEach { table ->
                             val selected = table in settings.selectedTables
@@ -340,11 +389,11 @@ private fun HomeScreen(
                                     onSettingsChange(settings.copy(selectedTables = next))
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (selected) Color(0xFF174968) else tileColor,
-                                border = BorderStroke(1.dp, if (selected) accent else Color(0xFF40516A))
+                                color = if (selected) colours.selected else tileColor,
+                                border = BorderStroke(1.dp, if (selected) accent else colours.border)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("${table}×", fontWeight = FontWeight.Bold, color = if (selected) accent else Color.White)
+                                    Text("${table}×", fontWeight = FontWeight.Bold, color = readableText(if (selected) colours.selected else tileColor))
                                 }
                             }
                         }
@@ -353,7 +402,7 @@ private fun HomeScreen(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Practise up to", color = muted, modifier = Modifier.weight(1f))
-                    Text("×${settings.multiplierLimit}", color = accent, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Text("×${settings.multiplierLimit}", color = colours.textOnPanel, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 }
                 Slider(
                     value = settings.multiplierLimit.toFloat(),
@@ -438,6 +487,7 @@ private fun HomeScreen(
 
 @Composable
 private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val panel = LocalMathPalette.current.panel
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -458,14 +508,24 @@ private fun GameScreen(
     attempted: Int,
     remainingMillis: Long,
     revealedIndex: Int,
+    timerPaused: Boolean,
+    onContinue: () -> Unit,
     onNumberTap: (Int) -> Unit,
     onEnd: () -> Unit
 ) {
+    val colours = LocalMathPalette.current
+    val tileColor = colours.tile
+    val accent = colours.button
+    val muted = colours.muted
+    val positive = colours.positive
+    val negative = colours.negative
     val reveal = revealedIndex >= 0
     val correct = reveal && revealedIndex == puzzle.correctIndex
+    val reviewingWrongAnswer = reveal && !correct
 
     Column(
-        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp),
+        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp)
+            .clickable(enabled = reviewingWrong) { onContinue() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -476,9 +536,9 @@ private fun GameScreen(
         if (settings.timeSeconds > 0) {
             val seconds = (remainingMillis + 999) / 1000
             Text(
-                "⏱ ${seconds}s",
-                color = if (seconds <= 10) negative else accent,
-                fontSize = 35.sp,
+                if (timerPaused) "⏸ ${seconds}s  PAUSED" else "⏱ ${seconds}s",
+                color = if (seconds <= 10 && !timerPaused) negative else colours.textOnBackground,
+                fontSize = if (timerPaused) 27.sp else 35.sp,
                 fontWeight = FontWeight.Black
             )
             Spacer(Modifier.height(8.dp))
@@ -518,7 +578,7 @@ private fun GameScreen(
                     val borderColor = when {
                         isCorrect -> positive
                         isWrong -> negative
-                        else -> Color(0xFF3B526D)
+                        else -> colours.border
                     }
                     Surface(
                         modifier = Modifier.weight(1f).height(if (columns == 2) 114.dp else 82.dp)
@@ -532,7 +592,7 @@ private fun GameScreen(
                                 puzzle.numbers[index].toString(),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = if (puzzle.numbers[index] > 99) 28.sp else 34.sp,
-                                color = Color.White
+                                color = readableText(color)
                             )
                         }
                     }
@@ -551,12 +611,29 @@ private fun GameScreen(
                 textAlign = TextAlign.Center
             )
             Text(puzzle.explanation, color = muted, fontSize = 19.sp)
+            if (reviewingWrongAnswer) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Timer paused — tap anywhere when you're ready.",
+                    color = colours.textOnBackground,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                FilledTonalButton(onClick = onContinue) {
+                    Text("NEXT QUESTION →")
+                }
+            }
         } else {
             Text("$attempted questions answered", color = muted, fontSize = 13.sp)
         }
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onEnd) {
-            Text(if (settings.timeSeconds == 0) "Finish practice" else "End game", color = muted)
+        Button(
+            onClick = onEnd,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Text(if (settings.timeSeconds == 0) "FINISH PRACTICE" else "END GAME", fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -574,6 +651,10 @@ private fun ResultScreen(
     onPlayAgain: () -> Unit,
     onHome: () -> Unit
 ) {
+    val colours = LocalMathPalette.current
+    val muted = colours.muted
+    val positive = colours.positive
+
     Column(
         modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
             .verticalScroll(rememberScrollState()).padding(22.dp),
@@ -583,7 +664,7 @@ private fun ResultScreen(
         Spacer(Modifier.height(25.dp))
         Text(if (settings.timeSeconds == 0) "Practice finished!" else "Time's up!", fontSize = 29.sp, fontWeight = FontWeight.Black)
         Text("⭐", fontSize = 55.sp)
-        Text("$points", color = accent, fontSize = 80.sp, fontWeight = FontWeight.Black)
+        Text("$points", color = colours.textOnBackground, fontSize = 80.sp, fontWeight = FontWeight.Black)
         Text("correct answers out of $attempted", color = muted)
         SectionCard("Your game") {
             Text(settings.summary(), color = muted)
@@ -626,6 +707,10 @@ private fun LeaderboardScreen(
     onToggleMatching: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
+    val colours = LocalMathPalette.current
+    val muted = colours.muted
+    val positive = colours.positive
+    val panel = colours.panel
     val displayed = entries
         .filter { !onlyMatching || it.settingsKey == matchingSettings.key() }
         .sortedWith(compareByDescending<ScoreEntry> { it.points }.thenBy { it.timestamp })
@@ -661,7 +746,7 @@ private fun LeaderboardScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("#${index + 1}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.width(47.dp))
+                        Text("#${index + 1}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colours.textOnPanel, modifier = Modifier.width(47.dp))
                         Column(Modifier.weight(1f)) {
                             Text(entry.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(entry.settingsDescription, fontSize = 12.sp, color = muted)

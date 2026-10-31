@@ -4,6 +4,11 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class Appearance(
+    val backgroundIndex: Int = 0,
+    val buttonIndex: Int = 0
+)
+
 data class ScoreEntry(
     val name: String,
     val points: Int,
@@ -20,7 +25,11 @@ class ScoreStore(context: Context) {
             val raw = prefs.getString("settings", null) ?: return GameSettings()
             val json = JSONObject(raw)
             val tablesArray = json.optJSONArray("tables") ?: JSONArray()
-            val tables = (0 until tablesArray.length()).map { tablesArray.optInt(it) }.toSet()
+            val tables = (0 until tablesArray.length())
+                .map { tablesArray.optInt(it) }
+                .filter { it in 2..12 }
+                .toSet()
+                .ifEmpty { setOf(2, 3, 4, 5) }
             val loaded = GameSettings(
                 operation = Operation.valueOf(json.optString("operation", "ADD")),
                 tileCount = json.optInt("tileCount", 6),
@@ -45,6 +54,18 @@ class ScoreStore(context: Context) {
             put("timeSeconds", settings.timeSeconds)
         }
         prefs.edit().putString("settings", json.toString()).apply()
+    }
+
+    fun loadAppearance(): Appearance = Appearance(
+        backgroundIndex = prefs.getInt("theme_background", 0).coerceIn(0, 7),
+        buttonIndex = prefs.getInt("theme_button", 0).coerceIn(0, 7)
+    )
+
+    fun saveAppearance(appearance: Appearance) {
+        prefs.edit()
+            .putInt("theme_background", appearance.backgroundIndex)
+            .putInt("theme_button", appearance.buttonIndex)
+            .apply()
     }
 
     fun lastName(): String = prefs.getString("last_name", "") ?: ""

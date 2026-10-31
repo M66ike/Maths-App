@@ -22,7 +22,7 @@ data class GameSettings(
     fun isValid(): Boolean = tileCount in 4..12 &&
         (timeSeconds == 0 || timeSeconds in 10..600) &&
         (if (isTablesMode) {
-            selectedTables.isNotEmpty() && selectedTables.all { it in 1..12 } && multiplierLimit in 1..12
+            selectedTables.isNotEmpty() && selectedTables.all { it in 2..12 } && multiplierLimit in 1..12
         } else {
             maxNumber in (tileCount * 2)..999
         })
@@ -61,9 +61,9 @@ class GameEngine(private val random: Random = Random.Default) {
             Operation.MULTIPLY -> {
                 if (settings.multiplierLimit == 1) {
                     multiplicationEquation(settings)
-                } else if (1 in settings.selectedTables &&
-                    random.nextInt(settings.selectedTables.size) == 0) {
-                    multiplicationEquation(settings, forcedTable = 1)
+                } else if (random.nextInt(settings.multiplierLimit) == 0) {
+                    // The x1 fact needs a shown equation: the product equals an operand.
+                    multiplicationEquation(settings, forcedMultiplier = 1)
                 } else {
                     classic(settings, isProduct = true)
                 }
@@ -163,9 +163,9 @@ class GameEngine(private val random: Random = Random.Default) {
         return equationPuzzle(settings, a, b, a - b, "−", settings.maxNumber)
     }
 
-    private fun multiplicationEquation(settings: GameSettings, forcedTable: Int? = null): Puzzle {
-        val a = forcedTable ?: settings.selectedTables.random(random)
-        val b = random.nextInt(1, settings.multiplierLimit + 1)
+    private fun multiplicationEquation(settings: GameSettings, forcedMultiplier: Int? = null): Puzzle {
+        val a = settings.selectedTables.random(random)
+        val b = forcedMultiplier ?: random.nextInt(1, settings.multiplierLimit + 1)
         val maximum = maxOf(24, (settings.selectedTables.maxOrNull() ?: 1) * settings.multiplierLimit, settings.tileCount + 5)
         return equationPuzzle(settings, a, b, a * b, "×", maximum)
     }
