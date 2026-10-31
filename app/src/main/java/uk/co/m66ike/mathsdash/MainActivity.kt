@@ -1,5 +1,6 @@
 package uk.co.m66ike.mathsdash
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
@@ -16,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -591,6 +593,21 @@ private fun GameScreen(
     val correct = reveal && revealedIndex == puzzle.correctIndex
     val reviewingWrongAnswer = reveal && !correct
 
+    if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        LandscapeGameScreen(
+            settings = settings,
+            puzzle = puzzle,
+            points = points,
+            attempted = attempted,
+            remainingMillis = remainingMillis,
+            revealedIndex = revealedIndex,
+            timerPaused = timerPaused,
+            onNumberTap = onNumberTap,
+            onEnd = onEnd
+        )
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -698,6 +715,165 @@ private fun GameScreen(
             shape = RoundedCornerShape(15.dp)
         ) {
             Text(if (settings.timeSeconds == 0) "FINISH PRACTICE" else "END GAME", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun LandscapeGameScreen(
+    settings: GameSettings,
+    puzzle: Puzzle,
+    points: Int,
+    attempted: Int,
+    remainingMillis: Long,
+    revealedIndex: Int,
+    timerPaused: Boolean,
+    onNumberTap: (Int) -> Unit,
+    onEnd: () -> Unit
+) {
+    val colours = LocalMathPalette.current
+    val reveal = revealedIndex >= 0
+    val correct = reveal && revealedIndex == puzzle.correctIndex
+    val columns = when {
+        puzzle.numbers.size <= 4 -> 2
+        puzzle.numbers.size >= 10 -> 4
+        else -> 3
+    }
+    val rows = (puzzle.numbers.size + columns - 1) / columns
+    val tileHeight = when (rows) {
+        1 -> 75.dp
+        2 -> 70.dp
+        else -> 55.dp
+    }
+
+    Row(
+        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.weight(0.34f).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                settings.operation.displayName,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Score  $points",
+                fontSize = 25.sp,
+                color = colours.positive,
+                fontWeight = FontWeight.Black
+            )
+            if (settings.timeSeconds > 0) {
+                val seconds = (remainingMillis + 999) / 1000
+                Text(
+                    if (timerPaused) "⏸ ${seconds}s" else "⏱ ${seconds}s",
+                    fontSize = 29.sp,
+                    color = if (seconds <= 10 && !timerPaused) colours.negative
+                        else colours.textOnBackground,
+                    fontWeight = FontWeight.Black
+                )
+                if (timerPaused) {
+                    Text("PAUSED", fontSize = 12.sp, color = colours.muted)
+                }
+                LinearProgressIndicator(
+                    progress = {
+                        (remainingMillis.toFloat() / (settings.timeSeconds * 1000)).coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = colours.button,
+                    trackColor = colours.tile
+                )
+            } else {
+                Text("PRACTICE MODE", fontSize = 12.sp, color = colours.textOnBackground)
+            }
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(
+                onClick = onEnd,
+                modifier = Modifier.width(160.dp).height(40.dp),
+                border = BorderStroke(1.dp, colours.border),
+                shape = RoundedCornerShape(13.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    if (settings.timeSeconds == 0) "FINISH" else "END GAME",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.weight(0.66f).fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                puzzle.instruction,
+                fontSize = if (puzzle.usesEquation) 23.sp else 17.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 25.sp
+            )
+            Text("Tap the correct number", color = colours.muted, fontSize = 11.sp)
+
+            puzzle.numbers.indices.toList().chunked(columns).forEach { rowIndices ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    rowIndices.forEach { index ->
+                        val isCorrect = reveal && index == puzzle.correctIndex
+                        val isWrong = reveal && index == revealedIndex &&
+                            index != puzzle.correctIndex
+                        val tileColour = when {
+                            isCorrect -> Color(0xFF236C4F)
+                            isWrong -> Color(0xFF8D303B)
+                            else -> colours.tile
+                        }
+                        val outline = when {
+                            isCorrect -> colours.positive
+                            isWrong -> colours.negative
+                            else -> colours.border
+                        }
+                        Surface(
+                            modifier = Modifier.weight(1f).height(tileHeight)
+                                .clickable(enabled = !reveal) { onNumberTap(index) },
+                            color = tileColour,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(2.dp, outline)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    puzzle.numbers[index].toString(),
+                                    fontSize = if (puzzle.numbers[index] > 99) 22.sp else 26.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = readableText(tileColour)
+                                )
+                            }
+                        }
+                    }
+                    repeat(columns - rowIndices.size) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+
+            if (reveal) {
+                Text(
+                    if (correct) "✓ Brilliant!" else "Not quite — green is correct",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (correct) colours.positive else colours.negative,
+                    textAlign = TextAlign.Center
+                )
+                Text(puzzle.explanation, fontSize = 15.sp, color = colours.muted)
+            } else {
+                Text("$attempted questions answered", fontSize = 11.sp, color = colours.muted)
+            }
         }
     }
 }

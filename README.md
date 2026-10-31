@@ -39,3 +39,7 @@ No account, analytics, network permission or backend. Names, settings and scores
 **Updating an existing debug install:** The first update from v1.0 may require uninstalling the old APK because GitHub's temporary debug signing key has changed. Uninstalling erases locally stored scores. The workflow now caches its debug key for more consistent future updates. For a permanent release, use a privately stored release signing key.
 
 - **Reset leaderboard**: The Scores screen includes a Reset all scores button. A confirmation is required; only saved score entries are erased, not the remembered player name or preferences.
+
+## Landscape orientation
+
+Maths Dash supports portrait and landscape on phones and tablets. Rotate the device (with system auto-rotate enabled) to place the score, timer and End button on the left and a compact puzzle grid on the right. The current game and remaining time stay in place during rotation. Menus, themes, results and scores remain scrollable in either orientation.
